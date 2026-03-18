@@ -1,0 +1,17 @@
+## 🛠️ AWS Storage Selection Matrix (SAA Keywords)
+
+### 📂 File Storage
+- **EFS:** Linux | NFS | Shared | Regional | Auto-scaling.
+- **FSx Windows:** Windows | SMB | Active Directory | DFS.
+- **FSx Lustre:** HPC | Machine Learning | High Throughput | S3.
+- **FSx ONTAP:** NetApp | Deduplication | Multi-protocol (NFS/SMB/iSCSI).
+
+### 🌐 Hybrid (Storage Gateway)
+- **S3 File Gateway:** NFS/SMB | Access S3 as files.
+- **Volume Gateway (Cached):** iSCSI | Local storage is limited | Primary data on S3.
+- **Volume Gateway (Stored):** iSCSI | Low latency | Primary data on-premises (Local).
+- **Tape Gateway:** Backup | VTL | Replace Physical Tapes.
+
+### ⚡ Block Storage (Local)
+- **EBS:** EC2 Instance | Single AZ | Block level.
+- **Instance Store:** Ephemeral (Dữ liệu mất khi Stop) | Highest IOPS | Physical attached.  
