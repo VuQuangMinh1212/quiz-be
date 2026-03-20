@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 module.exports = (db) => {
+  const getCourse = (req) => String(req.query.course || req.body?.course || 'dva').trim().toLowerCase();
+
   /**
    * POST /api/attempts
    * Submit đáp án
@@ -9,6 +11,7 @@ module.exports = (db) => {
    */
   router.post('/', async (req, res) => {
     try {
+      const course = getCourse(req);
       const { questionId, selectedAnswers } = req.body;
 
       if (!questionId || !selectedAnswers) {
@@ -17,7 +20,7 @@ module.exports = (db) => {
 
       // Lấy đáp án đúng
       const question = await db('questions')
-        .where({ question_id: questionId })
+        .where({ course, question_id: questionId })
         .first();
 
       if (!question) return res.status(404).json({ error: 'Không tìm thấy câu hỏi' });
@@ -32,7 +35,7 @@ module.exports = (db) => {
 
       // Tính attempt_number tiếp theo
       const lastAttempt = await db('attempts')
-        .where({ question_id: questionId })
+        .where({ course, question_id: questionId })
         .max('attempt_number as max')
         .first();
       const attemptNumber = (lastAttempt?.max ?? -1) + 1;
@@ -40,6 +43,7 @@ module.exports = (db) => {
       // Lưu vào DB
       const [attempt] = await db('attempts')
         .insert({
+          course,
           question_id: questionId,
           selected_answers: JSON.stringify(selectedAnswers),
           is_correct: isCorrect,
@@ -67,8 +71,9 @@ module.exports = (db) => {
    */
   router.get('/:questionId', async (req, res) => {
     try {
+      const course = getCourse(req);
       const attempts = await db('attempts')
-        .where({ question_id: req.params.questionId })
+        .where({ course, question_id: req.params.questionId })
         .orderBy('attempt_number', 'asc');
 
       res.json({ data: attempts });
@@ -83,6 +88,7 @@ module.exports = (db) => {
    */
   router.get('/stats/overview', async (req, res) => {
     try {
+      const course = getCourse(req);
       const stats = await db.raw(`
         SELECT
           COUNT(DISTINCT q.question_id)::int AS total_questions,
@@ -90,11 +96,12 @@ module.exports = (db) => {
           COUNT(DISTINCT CASE WHEN NOT latest.is_correct THEN q.question_id END)::int AS need_review
         FROM questions q
         LEFT JOIN (
-          SELECT DISTINCT ON (question_id) question_id, is_correct
+          SELECT DISTINCT ON (course, question_id) course, question_id, is_correct
           FROM attempts
-          ORDER BY question_id, created_at DESC
-        ) latest ON latest.question_id = q.question_id
-      `);
+          ORDER BY course, question_id, created_at DESC
+        ) latest ON latest.question_id = q.question_id AND latest.course = q.course
+        WHERE q.course = ?
+      `, [course]);
 
       res.json({ data: stats.rows[0] });
     } catch (err) {
