@@ -42,7 +42,10 @@ async function importFile(filePath) {
   }
 
   let inserted = 0;
-  let skipped = 0;
+  let updated = 0;
+  let deleted = 0;
+  let seedSkipped = 0;
+  const importedIds = new Set();
 
   for (const item of items) {
     const {
@@ -55,6 +58,12 @@ async function importFile(filePath) {
       isCorrect,
       isFlagged,
     } = item;
+
+    if (!Number.isInteger(questionId)) {
+      continue;
+    }
+
+    importedIds.add(questionId);
 
     // 1. Upsert vào bảng questions (bỏ qua nếu đã tồn tại)
     const existing = await db('questions').where({ course, question_id: questionId }).first();
@@ -71,27 +80,49 @@ async function importFile(filePath) {
       });
 
       // 2. Seed lần thi gốc (attempt_number = 0) từ JSON
-      await db('attempts').insert({
-        course,
-        question_id: questionId,
-        selected_answers: JSON.stringify(selectedAnswers),
-        is_correct: isCorrect,
-        attempt_number: 0,
-        is_flagged: isFlagged || false,
-      });
+      if (typeof isCorrect === 'boolean' && Array.isArray(selectedAnswers)) {
+        await db('attempts').insert({
+          course,
+          question_id: questionId,
+          selected_answers: JSON.stringify(selectedAnswers),
+          is_correct: isCorrect,
+          attempt_number: 0,
+          is_flagged: isFlagged || false,
+        });
+      } else {
+        seedSkipped++;
+      }
 
       inserted++;
     } else {
-      // Cập nhật source_file nếu chưa có
-      if (!existing.source_file) {
-        await db('questions').where({ course, question_id: questionId }).update({ source_file: filename });
-      }
-      skipped++;
+      await db('questions').where({ course, question_id: questionId }).update({
+        question_text: questionText,
+        explanation: explanation || null,
+        answers: JSON.stringify(answers),
+        correct_answer: JSON.stringify(correctAnswer),
+        source_file: filename,
+      });
+      updated++;
+    }
+  }
+
+  if (importedIds.size > 0) {
+    const existingSourceQuestions = await db('questions')
+      .select('question_id')
+      .where({ course, source_file: filename });
+
+    const idsToDelete = existingSourceQuestions
+      .map((row) => row.question_id)
+      .filter((id) => !importedIds.has(id));
+
+    if (idsToDelete.length > 0) {
+      await db('attempts').where({ course }).whereIn('question_id', idsToDelete).del();
+      deleted = await db('questions').where({ course, source_file: filename }).whereIn('question_id', idsToDelete).del();
     }
   }
 
   console.log(
-    `  ✅ [${course}] ${path.basename(filePath)}: +${inserted} câu mới, bỏ qua ${skipped} câu trùng`
+    `  ✅ [${course}] ${path.basename(filePath)}: +${inserted} mới, ~${updated} cập nhật, -${deleted} xóa, ⏭ ${seedSkipped} seed-attempt bỏ qua`
   );
 }
 
