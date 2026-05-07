@@ -7,5 +7,5 @@ RUN npm install --production
 
 COPY . .
 
-# Run migrations then start server
-CMD ["sh", "-c", "npm run migrate && npm run start"]
+# Run migrations, import latest JSON data, then start server
+CMD ["sh", "-c", "npm run migrate && npm run import && npm run start"]

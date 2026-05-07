@@ -17,6 +17,7 @@ app.use(express.json());
 // Routes
 app.use('/api/questions', require('./routes/questions')(db));
 app.use('/api/attempts', require('./routes/attempts')(db));
+app.use('/api/admin', require('./routes/admin')(db));
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
